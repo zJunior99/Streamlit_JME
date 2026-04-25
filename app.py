@@ -5,84 +5,82 @@ import pandas as pd
 # 1. Configuración de página
 st.set_page_config(page_title="Sentiment Lab PRO", page_icon="📊", layout="centered")
 
-# Inicialización del historial
+# Inicialización de estados
 if "history" not in st.session_state:
     st.session_state.history = []
 
-st.title("📊 Smart Sentiment Dashboard")
-st.markdown("---")
-
-# 2. Sidebar para contexto
-with st.sidebar:
-    st.header("About the App")
-    st.info("This tool uses Natural Language Processing (NLP) to determine if a text is positive, negative, or neutral.")
-    st.write("Built with: Streamlit & TextBlob")
-    st.markdown("---")
-    st.caption("Data Visualization Course 2026")
-
-# 3. Entrada de texto
-user_input = st.text_area("Enter text to analyze:", placeholder="I'm having a wonderful day learning Streamlit!", height=150)
-
-# Columnas para organizar botones
-col1, col2 = st.columns([1, 5])
-with col1:
-    btn_analyze = st.button("Analyze")
-
-if btn_analyze:
-    if user_input:
-        blob = TextBlob(user_input)
+# Función para procesar y limpiar
+def handle_analyze():
+    # Recuperamos el texto del estado antes de que se borre
+    text_to_analyze = st.session_state.user_text
+    
+    if text_to_analyze:
+        blob = TextBlob(text_to_analyze)
         polarity = round(blob.sentiment.polarity, 2)
         subjectivity = round(blob.sentiment.subjectivity, 2)
         
-        # 4. Lógica de Emojis y Umbrales
+        # Lógica de Emojis
         if polarity > 0.1:
-            label = "POSITIVE"
-            emoji = "🙂"
-            color = "success"
+            label, emoji, color = "POSITIVE", "🙂", "success"
         elif polarity < -0.1:
-            label = "NEGATIVE"
-            emoji = "☹️"
-            color = "error"
+            label, emoji, color = "NEGATIVE", "☹️", "error"
         else:
-            label = "NEUTRAL"
-            emoji = "😐"
-            color = "warning"
+            label, emoji, color = "NEUTRAL", "😐", "warning"
 
-        # 5. Guardar en el historial (Se agrega al inicio de la lista)
+        # Guardar en historial
         st.session_state.history.insert(0, {
-            "Text": user_input[:50] + "...", 
+            "Text": text_to_analyze[:30] + "...", 
             "Polarity": polarity, 
             "Subjectivity": subjectivity, 
             "Label": label
         })
+        st.session_state.history = st.session_state.history[:20]
+        
+        # Guardamos el resultado actual para mostrarlo abajo
+        st.session_state.current_result = {
+            "emoji": emoji, "polarity": polarity, 
+            "subjectivity": subjectivity, "label": label, "color": color
+        }
+    # Limpiamos el widget de texto
+    st.session_state.user_text = ""
 
-        # 6. Visualización de resultados inmediatos
-        st.subheader(f"Analysis Results {emoji}")
-        m1, m2 = st.columns(2)
-        m1.metric("Sentiment Score", f"{polarity}")
-        m2.metric("Subjectivity", f"{subjectivity} (0=Fact, 1=Opinion)")
+st.title("📊 Smart Sentiment Dashboard")
+st.markdown("---")
 
-        # Alerta visual
-        getattr(st, color)(f"The detected sentiment is {label}")
+# 2. Sidebar
+with st.sidebar:
+    st.header("About the App")
+    st.info("NLP Tool for real-time sentiment analysis.")
+    st.write("Built with: Streamlit & TextBlob")
 
-        # 7. Gráfico de barras
-        df_chart = pd.DataFrame({"Metric": ["Polarity", "Subjectivity"], "Value": [polarity, subjectivity]})
-        st.bar_chart(df_chart.set_index("Metric"))
-    else:
-        st.warning("Please enter some text first.")
+# 3. Entrada de texto vinculada al estado
+st.text_area("Enter text to analyze:", key="user_text", placeholder="Type here...", height=150)
 
-# 8. Sección del historial
+# Botón que dispara la función
+st.button("Analyze", on_click=handle_analyze)
+
+# 4. Mostrar resultados si existen
+if "current_result" in st.session_state and st.session_state.history:
+    res = st.session_state.current_result
+    st.subheader(f"Last Analysis {res['emoji']}")
+    m1, m2 = st.columns(2)
+    m1.metric("Sentiment Score", f"{res['polarity']}")
+    m2.metric("Subjectivity", f"{res['subjectivity']}")
+    getattr(st, res['color'])(f"The detected sentiment is {res['label']}")
+
+# 5. Comparativa e historial
 if st.session_state.history:
     st.markdown("---")
-    st.subheader("Analysis History")
-    
+    st.subheader("Sentiment Comparison (Historical)")
     df_history = pd.DataFrame(st.session_state.history)
-    st.dataframe(df_history, use_container_width=True)
-    
-    # Botón para limpiar historial con reinicio de app
-    if st.button("🗑️ Clear History"):
-        st.session_state.history = []
-        st.rerun()
+    st.bar_chart(df_history.set_index("Text")[["Polarity", "Subjectivity"]])
+
+    with st.expander("View Detailed History Log"):
+        st.dataframe(df_history, use_container_width=True)
+        if st.button("🗑️ Clear History"):
+            st.session_state.history = []
+            if "current_result" in st.session_state: del st.session_state.current_result
+            st.rerun()
 
 st.markdown("---")
 st.caption("Developed by Junior Mamani Estaña | Contact: junmamanie@upt.pe")
